@@ -3,8 +3,8 @@ const {nationCensusId} = require('./const/nations');
 const axios = require('axios');
 const fs = require('fs');
 const {format, subDays, parse, differenceInDays, addDays} = require('date-fns');
-let stockPrice = JSON.parse(fs.readFileSync('./src/const/stockprice.json', 'utf8'));
-let BGData = JSON.parse(fs.readFileSync('./src/const/StockMarketBackGroundData.json', 'utf8'));
+let stockPrice = JSON.parse(fs.readFileSync('./const/stockprice.json', 'utf8'));
+let BGData = JSON.parse(fs.readFileSync('./const/StockMarketBackGroundData.json', 'utf8'));
 const { calculation } = require('./Comparer.js');
 
 

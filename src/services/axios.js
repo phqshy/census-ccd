@@ -2,8 +2,11 @@ const { Axios } = require('axios');
 const { stringify } = require('qs');
 const fs = require('fs');
 const { schedule } = require('./helpers/schedule');
+require("dotenv");
 
-const CACHE_DIR = process.env.CACHE_DIR;
+//TODO: set this to .env
+const CACHE_DIR = './cache';
+console.log(CACHE_DIR);
 if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR);
 }
