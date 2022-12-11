@@ -70,7 +70,27 @@ const getFullRegionCensus = async (region, scale) => {
   return result;
 };
 
+/**
+ * Gets a regional census of the given scale (https://www.nationstates.net/cgi-bin/api.cgi?region=the_rejected_realms&q=census)
+ * @param {string} region the region to use
+ * @param {number} scale the scale to use
+ * @return {Promise<*>} an object containing SCORE and RANK
+ */
+const getRegionalCensusData = async (region, scale) => {
+  const resp = await axios.get('/', {
+    params: {
+      region,
+      q: formatNestedQueryParams({
+        CENSUS: true,
+        scale,
+      }),
+    },
+  });
+  return parseXml(await resp.data).REGION.CENSUS.SCALE;
+};
+
 module.exports = {
   getRegionCensus,
   getFullRegionCensus,
+  getRegionalCensusData
 };
