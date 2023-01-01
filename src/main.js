@@ -114,7 +114,7 @@ const main = async () => {
 
   console.log(textArray);
 
-  fs.writeFile(`./cache/CCDData-${new Date()}.txt`, JSON.stringify(textArray), (err) => {
+  fs.writeFile(`./cache/CCDData-${new Date().getTime()}.txt`, JSON.stringify(textArray), (err) => {
     // In case of a error throw err.
     if (err) throw err});
 };

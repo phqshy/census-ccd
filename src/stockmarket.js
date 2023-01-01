@@ -167,7 +167,7 @@ const stockmarketfunc = async () => {
   
   BGData.push(DataCollected)
 
-  fs.writeFile(`./src/const/StockMarketBackGroundData.json`, JSON.stringify(BGData), (err) => {
+  fs.writeFile(`./const/StockMarketBackGroundData.json`, JSON.stringify(BGData), (err) => {
     // In case of a error throw err.
     if (err) throw err});
     calculation();
