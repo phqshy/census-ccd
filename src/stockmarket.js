@@ -178,7 +178,4 @@ const updatedStockFunc = async() => {
   console.log(`cringe`);
 }
 
-updatedStockFunc();
-
-
-
+module.exports = { updatedStockFunc };
