@@ -4,5 +4,5 @@ require('dotenv').config();
 const { pushDispatch } = require("./dispatch");
 
 (async () => {
-  await pushDispatch();
+  await pushDispatch('This is being automated (again!)');
 })();

@@ -4,6 +4,7 @@ const census = require('./const/census');
 const backgroundData = require('./const/StockMarketBackGroundData.json');
 const secrets = require('../secrets/secrets.json');
 const { parseXml } = require("./services/helpers/parseXml");
+const { getRegionalCensusData } = require("./services/fetchers/region");
 
 /*
   HOW TO DO THIS:
@@ -21,8 +22,14 @@ const { parseXml } = require("./services/helpers/parseXml");
 const latestStockPrices = stockprice[stockprice.length - 1];
 const latestBackgroundData = backgroundData[backgroundData.length - 1][0];
 
-async function pushDispatch(){
-  const fullText = await generateDispatchHeader() + generateStockTable() + generateFooter();
+/**
+ * Fetches dispatch data from files in ./const and posts them to NationStates as a dispatch. This will create a new dispatch!
+ * This method requires secrets/secrets.json placed in the root project directory, with a nation and password property
+ * @param {string} news optional fiscal news for the "Market News" section
+ * @return {Promise<void>}
+ */
+async function pushDispatch(news = ''){
+  const fullText = await generateDispatchHeader(news) + generateStockTable() + generateFooter();
 
   let params = new URLSearchParams();
   params.append("nation", `${secrets.nation}`);
@@ -42,7 +49,6 @@ async function pushDispatch(){
     },
   });
 
-  console.log(prepare.headers);
   const token = parseXml(prepare.data).NATION.SUCCESS;
 
   params = new URLSearchParams();
@@ -84,7 +90,7 @@ function generateStockTable() {
       [color=#E3E4E6]
       [/color][color=#E3E4E6]
       ${current.stockName}[/color][/td][td][url=https://www.nationstates.net/cgi-bin/api.cgi?nation=${current.nation};q=census;scale=${current.censusid};mode=score]${censusName}[/url][/td][td][color=#E3E4E6]
-      ${(current.TotalShares - current.AvaShares === current.TotalShares) ? current.TotalShares : `[strike]${current.TotalShares}[strike]
+      ${(current.TotalShares - current.AvaShares === current.TotalShares) ? current.TotalShares : `[strike]${current.TotalShares}[/strike]
 ${current.AvaShares}`}[/color]
       [/td][td][color=#E3E4E6]
       ${Math.round(current.stockPrice * 1000) / 1000}
@@ -98,8 +104,12 @@ ${current.AvaShares}`}[/color]
   return data + "[/table]\n";
 }
 
-async function generateDispatchHeader(){
+async function generateDispatchHeader(news = ''){
   const date = latestStockPrices.date.replaceAll('-', '/');
+
+  const censusData = await getRegionalCensusData('confederation_of_corrupt_dictators', census.EconomicOutput);
+  const regionalGDP = Number(Math.round(censusData.SCORE));
+
   return `[background-block=#041119][center]
     [tab=1] [/tab]
     
@@ -113,33 +123,33 @@ async function generateDispatchHeader(){
     [tab=1] [/tab]
     
     [table=plain][tr][td][tab=100][/tab][/td]
-    [td][color=#B47174][font=Courier][size=160]Avg. Inflation Rate[/size][/font][/color][/td]
-    [td][color=#B47174][font=Courier][size=160]Avg. Employment Rate[/size][/font][/color][/td]
-    [td][color=#B47174][font=Courier][size=160]Avg. Tax Rate[/size][/font][/color][/td]
-    [td][color=#7EE198][font=Courier][size=160]Avg. Scientific Advancement Rate[/size][/font][/color][/td]
-    [td][color=#7EE198][font=Courier][size=160]Avg. Economy Rating[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]Avg. Inflation Rate[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]Avg. Employment Rate[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]Avg. Tax Rate[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]Avg. Scientific Advancement Rate[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]Avg. Economy Rating[/size][/font][/color][/td]
     [td][tab=100][/tab][/td][/tr]
     
     [tr][td][/td]
-    [td][color=#E3E4E6][font=Courier][size=160]${Math.round(calculateInflation() * 10) / 10}%[/size][/font][/color][/td]
-    [td][color=#E3E4E6][font=Courier][size=160]${Math.round(latestBackgroundData.AverageEmpRating * 100) / 100}[/size][/font][/color][/td]
-    [td][color=#E3E4E6][font=Courier][size=160]${Math.round(latestBackgroundData.AverageTaxRating * 100) / 100}[/size][/font][/color][/td]
-    [td][color=#E3E4E6][font=Courier][size=160]${Math.round(latestBackgroundData.AverageSciRating * 1000) / 1000}[/size][/font][/color][/td]
-    [td][color=#E3E4E6][font=Courier][size=160]${Math.round(latestBackgroundData.AverageEcoRating * 1000) / 1000}[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]${Math.round(calculateInflation() * 10) / 10}%[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]${Math.round(latestBackgroundData.AverageEmpRating * 100) / 100}[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]${Math.round(latestBackgroundData.AverageTaxRating * 100) / 100}[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]${Math.round(latestBackgroundData.AverageSciRating * 1000) / 1000}[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]${Math.round(latestBackgroundData.AverageEcoRating * 1000) / 1000}[/size][/font][/color][/td]
     [td][/td][/tr]
     
     [/table]
     [tab=1] [/tab]
     
     [table=plain][tr][td][tab=300][/tab][/td]
-    [td][color=#7EE198][font=Courier][size=160]Gross Regional Product[/size][/font][/color][/td]
-    [td][color=#7EE198][font=Courier][size=160]Average GDP[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]Gross Regional Product[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]Average GDP[/size][/font][/color][/td]
     
     [td][tab=300][/tab][/td][/tr]
     
     [tr][td][/td]
-    [td][color=#E3E4E6][font=Courier][size=160]325.622 Quintillion Flammas[/size][/font][/color][/td]
-    [td][color=#E3E4E6][font=Courier][size=160]${Math.round(latestBackgroundData.AverageGDPRating * 1000) / 1000}[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]${formatNumber(regionalGDP) + " Flammas"}[/size][/font][/color][/td]
+    [td][color=#FFFFFF][font=Courier][size=160]${formatNumber(latestBackgroundData.AverageGDPRating) + " Flammas"}[/size][/font][/color][/td]
     [td][/td][/tr]
     
     
@@ -164,7 +174,7 @@ async function generateDispatchHeader(){
     
     [/color][/size][/font]
     
-    [color=#E3E4E6][font=Courier]I am automating this[/font][/color]
+    [color=#E3E4E6][font=Courier]${(news !== '') ? news : "No news to report"}[/font][/color]
     
     [/center]
     [hr]
@@ -182,7 +192,7 @@ async function generateDispatchHeader(){
 
 function generateFooter(){
   return `[spoiler=Made By]
-    [color=#FFFFFF]First Created by [nation]Nova Occidens[/nation]; Gif by [nation]Aeioux[/nation]; Maintenance and New Format by [nation]MineLegotipony[/nation]; Concept made by [nation]Hellslayer[/nation] [/color]
+    [color=#FFFFFF]First Created by [nation]Nova Occidens[/nation]; Gif by [nation]Aeioux[/nation]; Maintenance and New Format by [nation]MineLegotipony[/nation]; Concept made by [nation]Hellslayer[/nation]; Automatically generated by [nation]The Yeetusa[/nation] [/color]
     [/spoiler]
     [tab=1] [/tab]
     
@@ -198,6 +208,46 @@ function calculateInflation(){
 
   return (((oldBackground.AverageSciRating) * (oldBackground.AverageEmpRating) * (oldBackground.AverageEcoRating)) / (oldBackground.AverageTaxRating) /
     (((currentBackground.AverageSciRating) * (currentBackground.AverageEmpRating) * (currentBackground.AverageEcoRating)) / (currentBackground.AverageTaxRating)));
+}
+
+function formatNumber(num){
+  let i = 0;
+  while (num >= 1000){
+    num /= 1000;
+    i++;
+  }
+
+  num = Math.round(num * 1000) / 1000;
+  switch (i){
+  case 1:
+    num += ' Thousand';
+    break;
+  case 2:
+    num += ' Million';
+    break;
+  case 3:
+    num += ' Billion';
+    break;
+  case 4:
+    num += ' Trillion';
+    break;
+  case 5:
+    num += ' Quadrillion';
+    break;
+  case 6:
+    num += ' Quintillion';
+    break;
+  case 7:
+    num += ' Sextillion';
+    break;
+  case 8:
+    num += ' Septillion';
+    break;
+  default:
+    throw new Error('Number is bigger than allowed');
+  }
+
+  return num;
 }
 
 module.exports = {
