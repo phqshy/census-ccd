@@ -33,8 +33,7 @@ axios.interceptors.request.use(async (config) => {
 
   if (fs.existsSync(cacheFileName)) {
     const cachedData = JSON.parse(fs.readFileSync(cacheFileName, 'utf-8').toString());
-
-    if (new Date() - cachedData.timestamp <= Number(process.env.AXIOS_MAX_CACHE_AGE) * 60 * 1000) {
+    if (Number(new Date()) - cachedData.timestamp <= Number(process.env.AXIOS_MAX_CACHE_AGE) * 60 * 1000) {
       console.info(`[axios] ${Number(new Date())} - Reading from cache: ${cacheFileName}`);
 
       throw { ...cachedData, isCachedResponse: true };

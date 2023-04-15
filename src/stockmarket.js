@@ -3,11 +3,11 @@ const { nationCensusId } = require('./const/nations');
 const { axios } = require('./services/axios');
 const fs = require('fs');
 const { format } = require('date-fns');
-let BGData = JSON.parse(fs.readFileSync('./const/StockMarketBackGroundData.json', 'utf8'));
+let BGData = JSON.parse(fs.readFileSync('src/const/StockMarketBackGroundData.json', 'utf8'));
 const { parseXml } = require("./services/helpers/parseXml");
 const { getRegionCensus } = require("./services/fetchers/region");
 
-JSON.parse(fs.readFileSync('./const/stockprice.json', 'utf8'));
+JSON.parse(fs.readFileSync('src/const/stockprice.json', 'utf8'));
 
 //This is specific to Stock Market - Collects Regional Economic Rating, Each Nation's Economic Rating and Each Stock's Industry's Stat
 
@@ -92,10 +92,9 @@ const fetchBackgroundData = async () => {
   //find all nations with a residency under 30 days and blacklist them
   while (!flagged) {
     currentIndex -= 20;
-    let current = await getRegionCensus("confederation_of_corrupt_dictators", CensusScale.Residency, currentIndex);
-    let nations = parseXml(current.data.toString());
+    let nations = parseXml(await getRegionCensus("confederation_of_corrupt_dictators", CensusScale.Residency, currentIndex));
     //search through nations, we reverse this so the lowest residency is first
-    for (const match of nations.REGION.CENSUSRANKS.NATIONS.reverse()) {
+    for (const match of nations.REGION.CENSUSRANKS.NATIONS.NATION.reverse()) {
       try {
         const name = match.NAME;
         const score = match.SCORE;
@@ -137,21 +136,21 @@ const fetchBackgroundData = async () => {
     })).data);
 
     //add to running total
-    CCDEcoTotal += dataGathered.NATION.CENSUS[CensusScale.Economy].SCORE;
-    CCDGDPTotal += dataGathered.NATION.CENSUS[CensusScale.EconomicOutput].SCORE;
-    CCDempTotal += dataGathered.NATION.CENSUS[CensusScale.Employment].SCORE;
-    CCDTaxTotal += dataGathered.NATION.CENSUS[CensusScale.Taxation].SCORE;
-    CCDSciTotal += dataGathered.NATION.CENSUS[CensusScale.ScientificAdvancement].SCORE;
+    CCDEcoTotal += dataGathered.NATION.CENSUS.SCALE[CensusScale.Economy].SCORE;
+    CCDGDPTotal += dataGathered.NATION.CENSUS.SCALE[CensusScale.EconomicOutput].SCORE;
+    CCDempTotal += dataGathered.NATION.CENSUS.SCALE[CensusScale.Employment].SCORE;
+    CCDTaxTotal += dataGathered.NATION.CENSUS.SCALE[CensusScale.Taxation].SCORE;
+    CCDSciTotal += dataGathered.NATION.CENSUS.SCALE[CensusScale.ScientificAdvancement].SCORE;
 
     //store data and push to list
     const newData = new NationBackgroundData(
       filteredNations[j],
       new Date(),
-      dataGathered.NATION.CENSUS[CensusScale.Economy].SCORE,
-      dataGathered.NATION.CENSUS[CensusScale.EconomicOutput].SCORE,
-      dataGathered.NATION.CENSUS[CensusScale.Employment].SCORE,
-      dataGathered.NATION.CENSUS[CensusScale.Taxation].SCORE,
-      dataGathered.NATION.CENSUS[CensusScale.ScientificAdvancement].SCORE
+      dataGathered.NATION.CENSUS.SCALE[CensusScale.Economy].SCORE,
+      dataGathered.NATION.CENSUS.SCALE[CensusScale.EconomicOutput].SCORE,
+      dataGathered.NATION.CENSUS.SCALE[CensusScale.Employment].SCORE,
+      dataGathered.NATION.CENSUS.SCALE[CensusScale.Taxation].SCORE,
+      dataGathered.NATION.CENSUS.SCALE[CensusScale.ScientificAdvancement].SCORE
     );
 
     nationBackgroundData.push(newData);
@@ -205,7 +204,7 @@ const generateBackgroundData = async () => {
           `Querying: ${nationCensusId[i][0]}: ${Object.keys(CensusScale)[nationCensusId[i][j]]}(${nationCensusId[i][j]}): https://www.nationstates.net/cgi-bin/api.cgi?nation=${nationCensusId[i][0].replaceAll(" ", "_")};q=census;scale=${nationCensusId[i][j]};mode=score`,
           new Date(),
           Number(nationCensusId[i][j]),
-          Number(data.NATION.CENSUS[nationCensusId[i][j]].SCORE));
+          Number(data.NATION.CENSUS.SCALE[nationCensusId[i][j]].SCORE));
         nationData.push(newNationData);
       } catch (e) {
         console.log(e);
