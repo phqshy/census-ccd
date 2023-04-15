@@ -2,7 +2,7 @@ const { getFullRegionCensus } = require('./services/fetchers/region');
 const CensusScale = require('./const/census');
 const fs = require('fs');
 const nationCensusId = require('./const/nations');
-const { default: axios } = require('axios');
+const { default: axios } = require('./services/axios');
 
 
 

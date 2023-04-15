@@ -1,4 +1,4 @@
-const axios = require('axios');
+const { axios } = require('./services/axios');
 const stockprice = require('./const/stockprice.json');
 const census = require('./const/census');
 const backgroundData = require('./const/StockMarketBackGroundData.json');
@@ -32,7 +32,7 @@ async function pushDispatch(news = ''){
   const fullText = await generateDispatchHeader(news) + generateStockTable() + generateFooter();
 
   let params = new URLSearchParams();
-  params.append("nation", `${secrets.nation}`);
+  params.append("nation", `${secrets.nation.replaceAll(" ", "_")}`);
   params.append("c", "dispatch");
   params.append("dispatch", "add");
   params.append("title", "Confederation Stock Market");
@@ -65,7 +65,7 @@ async function pushDispatch(news = ''){
   const execute = await axios.post('https://www.nationstates.net/cgi-bin/api.cgi', params, {
     headers: {
       "x-pin": `${prepare.headers['x-pin']}`,
-      "User-Agent": "the Yeetusa (the.yeetusa@gmail.com)",
+      "User-Agent": "CCD Stock Market Updater / 1.0; The Yeetusa (the.yeetusa@gmail.com)",
       "Content-Type": "application/x-www-form-urlencoded"
     }
   })
@@ -242,6 +242,9 @@ function formatNumber(num){
     break;
   case 8:
     num += ' Septillion';
+    break;
+  case 9:
+    num += ' Octillion';
     break;
   default:
     throw new Error('Number is bigger than allowed');
