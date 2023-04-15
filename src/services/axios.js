@@ -17,6 +17,9 @@ const axios = new Axios({
     stringify(params, {
       encode: false,
     }),
+  headers: {
+    "User-Agent": "CCD Stock Market Updater / 1.0; The Yeetusa (the.yeetusa@gmail.com)"
+  }
 });
 
 /**

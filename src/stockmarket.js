@@ -1,21 +1,15 @@
 const CensusScale = require('./const/census');
-const {nationCensusId} = require('./const/nations');
-const axios = require('axios');
+const { nationCensusId } = require('./const/nations');
+const { axios } = require('./services/axios');
 const fs = require('fs');
-const {format, subDays, parse, differenceInDays, addDays} = require('date-fns');
-let stockPrice = JSON.parse(fs.readFileSync('./const/stockprice.json', 'utf8'));
+const { format } = require('date-fns');
 let BGData = JSON.parse(fs.readFileSync('./const/StockMarketBackGroundData.json', 'utf8'));
-const { calculation } = require('./Comparer.js');
+const { parseXml } = require("./services/helpers/parseXml");
+const { getRegionCensus } = require("./services/fetchers/region");
 
-
+JSON.parse(fs.readFileSync('./const/stockprice.json', 'utf8'));
 
 //This is specific to Stock Market - Collects Regional Economic Rating, Each Nation's Economic Rating and Each Stock's Industry's Stat
-//@TODO: Make a base query method with a delaying mechanism. 
-//console.log(nationNameList[0]);
-//console.log(nationCensusId["minelegotipony"]);
-let DataCollected = [];
-let FilteredNations = [];
-let FilteredNationsData = [];
 
 function NationData(nation, log, time, id, stat) {
   this.nationName = nation;
@@ -23,159 +17,209 @@ function NationData(nation, log, time, id, stat) {
   this.timeused = time;
   this.censusid = id;
   this.data = stat;
-};
+}
 
-//To get a NtaionBackgroundData that is required to do math and everything else. 
+//To get a NationBackgroundData that is required to do math and everything else.
 function NationBackgroundData(nation, time, ecoRating, ecoOutput, employment, taxation, scienceRate) {
   this.nationName = nation;
-  this.serviceTime = time;
-  this.economyRating = ecoRating;
-  this.GDPRating = ecoOutput;
-  this.employRating = employment;
-  this.taxRating = taxation;
-  this.SARate = scienceRate;
+  this.timestamp = time;
+  this.economy = ecoRating;
+  this.GDP = ecoOutput;
+  this.employment = employment;
+  this.tax = taxation;
+  this.science = scienceRate;
 }
 
 //To Place all the average Confederation Eco Stats.
 function RegionAverageData(time, Eco, GDP, Emp, Tax, Sci) {
   this.serviceTime = time;
-  this.AverageEcoRating = Eco;
-  this.AverageGDPRating = GDP;
-  this.AverageEmpRating = Emp;
-  this.AverageTaxRating = Tax;
-  this.AverageSciRating = Sci;
+  this.averageEconomy = Eco;
+  this.averageGDP = GDP;
+  this.averageEmployment = Emp;
+  this.averageTax = Tax;
+  this.averageScience = Sci;
 }
 
-let CCDEcoTotal = 0;
-let CCDGDPTotal = 0;
-let CCDempTotal = 0;
-let CCDTaxTotal = 0;
-let CCDSciTotal = 0;
+const fetchBackgroundData = async () => {
+  //bypass expensive operations if today's data is already cached
+  if (fs.existsSync(`${process.env.CACHE_DIR}/StockMarket-Background-${format(new Date(), "yyyy-M-dd")}.json`)){
+    const cachedList = JSON.parse(fs.readFileSync(`${process.env.CACHE_DIR}/StockMarket-Background-${format(new Date(), "yyyy-M-dd")}.json`).toString());
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+    //this is the same as the calculations at the bottom part
+    //sum everything up and then take the average
+    let CCDEcoTotal = 0;
+    let CCDGDPTotal = 0;
+    let CCDempTotal = 0;
+    let CCDTaxTotal = 0;
+    let CCDSciTotal = 0;
 
-let delay = 1000;
-let delay2 = 0;
+    for (const nation of cachedList) {
+      CCDEcoTotal += nation.economy;
+      CCDGDPTotal += nation.GDP;
+      CCDempTotal += nation.employment;
+      CCDTaxTotal += nation.tax;
+      CCDSciTotal += nation.science;
+    }
 
-const backgrounddata = async () => {
-  let nationList = await axios.get(`https://www.nationstates.net/cgi-bin/api.cgi?region=confederation_of_corrupt_dictators&q=nations`);
-  let nationToSearch = nationList.data.split(`<REGION id="confederation_of_corrupt_dictators">\n<NATIONS>`)[1].split(":")
-  console.log(`Serving for ${nationToSearch.length - 1} nations`);
-  for (let i = 0; i < nationToSearch.length - 1; i++) {
-    let waittime = 500 + delay
-    console.log(`Serving request ${i}`)
-    try {
-      let searchData = await axios.get(`https://www.nationstates.net/cgi-bin/api.cgi?nation=${nationToSearch[i]};q=census;scale=80`) 
-      await sleep(waittime)
-      let searchData2 = searchData.data.split("\n")[3].split("<")[1].split(">")[1];
-      if (searchData2 > 30) {
-        FilteredNations.push(nationToSearch[i]);
-        console.log(nationToSearch[i]);
-        console.log(searchData2);
-      }  
-      console.log(waittime)
-    } catch(e) {
-      console.log(e)
+    let averageEconomy = CCDEcoTotal / cachedList.length;
+    let averageGDP = CCDGDPTotal / cachedList.length;
+    let averageEmployment = CCDempTotal / cachedList.length;
+    let averageTaxation = CCDTaxTotal / cachedList.length;
+    let averageScience = CCDSciTotal / cachedList.length;
+
+    return new RegionAverageData(
+      format(new Date(), "yyyy-M-dd"),
+      averageEconomy, averageGDP, averageEmployment, averageTaxation, averageScience
+    );
+  }
+
+  //fetch list of nations
+  let nationList = await axios.get('/', {
+    params: {
+      region: "confederation_of_corrupt_dictators",
+      q: "nations"
+    }
+  });
+  let nationToSearch = parseXml(nationList.data).REGION.NATIONS.split(":");
+  console.log(`Serving for ${nationToSearch.length} nations`);
+
+  //find all nations under 30 days
+  let currentIndex = nationToSearch.length;
+  let blacklist = [];
+
+  let flagged = false;
+
+  //find all nations with a residency under 30 days and blacklist them
+  while (!flagged) {
+    currentIndex -= 20;
+    let current = await getRegionCensus("confederation_of_corrupt_dictators", CensusScale.Residency, currentIndex);
+    let nations = parseXml(current.data.toString());
+    //search through nations, we reverse this so the lowest residency is first
+    for (const match of nations.REGION.CENSUSRANKS.NATIONS.reverse()) {
+      try {
+        const name = match.NAME;
+        const score = match.SCORE;
+        if (score < 30) {
+          blacklist.push(name);
+        } else {
+          //break if this is the first one over 30 days
+          flagged = true;
+        }
+      } catch (e) {}
     }
   }
-  sleep(50000);
-  console.log(FilteredNations)
-  for (let j = 1; j < FilteredNations.length; j++ ) {
-    await sleep(2000);
-    console.log(new Date())
+
+  //remove those in the blacklist from nationToSearch
+  let filteredNations = nationToSearch.filter((e) => !blacklist.includes(e));
+  console.log(`${blacklist.length} nations were filtered for having a residency under 30 (${filteredNations.length}/${nationToSearch.length})`);
+
+  //sum
+  let CCDEcoTotal = 0;
+  let CCDGDPTotal = 0;
+  let CCDempTotal = 0;
+  let CCDTaxTotal = 0;
+  let CCDSciTotal = 0;
+
+  let nationBackgroundData = [];
+
+  for (let j = 0; j < filteredNations.length; j++ ) {
     console.log(`Serving request ${j}`);
-    console.log(`Nation: ${FilteredNations[j]}`);
+    console.log(`Nation: ${filteredNations[j]}`);
 
     //Found Issue here. 
-    let dataGathered = await axios.get(`https://www.nationstates.net/cgi-bin/api.cgi?nation=${FilteredNations[j]};q=census;scale=1+76+56+49+70;mode=score`);
-    //let ecodata = await axios.get(`https://www.nationstates.net/cgi-bin/api.cgi?nation=${FilteredNations[j]};q=census;scale=1;mode=score`);
-    //let ecooutputdata = await axios.get(`https://www.nationstates.net/cgi-bin/api.cgi?nation=${FilteredNations[j]};q=census;scale=76;mode=score`);
-    //let employdata = await axios.get(`https://www.nationstates.net/cgi-bin/api.cgi?nation=${FilteredNations[j]};q=census;scale=56;mode=score`);
-    //let taxdata = await axios.get(`https://www.nationstates.net/cgi-bin/api.cgi?nation=${FilteredNations[j]};q=census;scale=49;mode=score`);
-    //let sadata = await axios.get(`https://www.nationstates.net/cgi-bin/api.cgi?nation=${FilteredNations[j]};q=census;scale=70;mode=score`);
-    CCDEcoTotal += Number(dataGathered.data.split("\n")[3].split("<")[1].split(">")[1]);
-    CCDGDPTotal += Number(dataGathered.data.split("\n")[15].split("<")[1].split(">")[1]);
-    CCDempTotal += Number(dataGathered.data.split("\n")[9].split("<")[1].split(">")[1]);
-    CCDTaxTotal += Number(dataGathered.data.split("\n")[6].split("<")[1].split(">")[1]);
-    CCDSciTotal += Number(dataGathered.data.split("\n")[12].split("<")[1].split(">")[1]);
+    let dataGathered = parseXml((await axios.get("/", {
+      params: {
+        nation: filteredNations[j],
+        q: "census",
+        scale: "all",
+        mode: "score"
+      }
+    })).data);
+
+    //add to running total
+    CCDEcoTotal += dataGathered.NATION.CENSUS[CensusScale.Economy].SCORE;
+    CCDGDPTotal += dataGathered.NATION.CENSUS[CensusScale.EconomicOutput].SCORE;
+    CCDempTotal += dataGathered.NATION.CENSUS[CensusScale.Employment].SCORE;
+    CCDTaxTotal += dataGathered.NATION.CENSUS[CensusScale.Taxation].SCORE;
+    CCDSciTotal += dataGathered.NATION.CENSUS[CensusScale.ScientificAdvancement].SCORE;
+
+    //store data and push to list
     const newData = new NationBackgroundData(
-      FilteredNations[j],
+      filteredNations[j],
       new Date(),
-      Number(dataGathered.data.split("\n")[3].split("<")[1].split(">")[1]),
-      Number(dataGathered.data.split("\n")[15].split("<")[1].split(">")[1]),
-      Number(dataGathered.data.split("\n")[9].split("<")[1].split(">")[1]),
-      Number(dataGathered.data.split("\n")[6].split("<")[1].split(">")[1]),
-      Number(dataGathered.data.split("\n")[12].split("<")[1].split(">")[1])
-      )
-    FilteredNationsData.push(newData);
+      dataGathered.NATION.CENSUS[CensusScale.Economy].SCORE,
+      dataGathered.NATION.CENSUS[CensusScale.EconomicOutput].SCORE,
+      dataGathered.NATION.CENSUS[CensusScale.Employment].SCORE,
+      dataGathered.NATION.CENSUS[CensusScale.Taxation].SCORE,
+      dataGathered.NATION.CENSUS[CensusScale.ScientificAdvancement].SCORE
+    );
+
+    nationBackgroundData.push(newData);
   }
-  console.log(FilteredNationsData);
-  let FilternationsAmount = FilteredNations.length;
-  console.log(FilternationsAmount);
-  let data1 = CCDEcoTotal/FilternationsAmount;
-  let data2 = CCDGDPTotal/FilternationsAmount;
-  let data3 = CCDempTotal/FilternationsAmount;
-  let data4 = CCDTaxTotal/FilternationsAmount;
-  let data5 = CCDSciTotal/FilternationsAmount;
+
+  //calculate averages
+  let averageEconomy = CCDEcoTotal / nationBackgroundData.length;
+  let averageGDP = CCDGDPTotal / nationBackgroundData.length;
+  let averageEmployment = CCDempTotal / nationBackgroundData.length;
+  let averageTaxation = CCDTaxTotal / nationBackgroundData.length;
+  let averageScience = CCDSciTotal / nationBackgroundData.length;
+
   const CCDAverageData = new RegionAverageData(
     format(new Date(), "yyyy-M-dd"),
-    data1, data2, data3, data4, data5 
-  )
-  console.log(CCDAverageData);
+    averageEconomy, averageGDP, averageEmployment, averageTaxation, averageScience
+  );
 
-  fs.writeFile(`./cache/StockMarket-Background-${format(new Date(), "yyyy-M-dd")}.json`, JSON.stringify(FilteredNationsData), (err) => {
+  //cache background data
+  fs.writeFile(`${process.env.CACHE_DIR}/StockMarket-Background-${format(new Date(), "yyyy-M-dd")}.json`, JSON.stringify(nationBackgroundData), (err) => {
     // In case of a error throw err.
-    if (err) throw err});
+    if (err) throw err;});
 
-  return CCDAverageData
-}
+  return CCDAverageData;
+};
 
-//backgrounddata();
+//Fetch background data, parse it, and save it to StockMarketBackGroundData.json
+const generateBackgroundData = async () => {
+  //initialize array for data
+  let nationData = [];
+  nationData.push(await fetchBackgroundData());
 
-
-
-const stockmarketfunc = async () => {
-  let backgroundData = await backgrounddata();
-  DataCollected.push(backgroundData);
-
+  //loop through nations with a company
   for (let i = 0; i < nationCensusId.length; i++) {
+    //loop through a nation's censuses
     for (let j = 1; j < nationCensusId[i].length; j++) {
-      let FirstDate = Number(new Date());
-      console.log(`Serving Query at ${new Date()}`);
-      let Querylog = `Querying: ${nationCensusId[i][0]}: ${Object.keys(CensusScale)[nationCensusId[i][j]]}(${nationCensusId[i][j]}): https://www.nationstates.net/cgi-bin/api.cgi?nation=${nationCensusId[i][0]};q=census;scale=${nationCensusId[i][j]};mode=score`;
-      console.log(`${Querylog}, querying at ${new Date()}`);
-      let unprocessedData = await axios.get(`https://www.nationstates.net/cgi-bin/api.cgi?nation=${nationCensusId[i][0]};q=census;scale=${nationCensusId[i][j]};mode=score`);
-      await sleep(1000);
-      let processedData = unprocessedData.data.split("\n")[3].split("<")[1].split(">")[1];
-      console.log(processedData);
-      let SecondDate = Number(new Date());
-      console.log(`Finished Serving Query at ${new Date()}`);
-      let timechanged = SecondDate - FirstDate;
-      const newNationData = new NationData(nationCensusId[i][0], Querylog, timechanged, Number(nationCensusId[i][j]), Number(processedData));
-      DataCollected.push(newNationData);
+      try {
+        console.log(`Querying: ${nationCensusId[i][0]}: ${Object.keys(CensusScale)[nationCensusId[i][j]]}(${nationCensusId[i][j]}): https://www.nationstates.net/cgi-bin/api.cgi?nation=${nationCensusId[i][0].replaceAll(" ", "_")};q=census;scale=${nationCensusId[i][j]};mode=score`);
+
+        //fetch data
+        let data = parseXml((await axios.get("/", {
+          params: {
+            nation: nationCensusId[i][0].replaceAll(" ", "_"),
+            q: "census",
+            scale: "all",
+            mode: "score"
+          }
+        })).data);
+
+        //create object and add to array
+        const newNationData = new NationData(nationCensusId[i][0],
+          `Querying: ${nationCensusId[i][0]}: ${Object.keys(CensusScale)[nationCensusId[i][j]]}(${nationCensusId[i][j]}): https://www.nationstates.net/cgi-bin/api.cgi?nation=${nationCensusId[i][0].replaceAll(" ", "_")};q=census;scale=${nationCensusId[i][j]};mode=score`,
+          new Date(),
+          Number(nationCensusId[i][j]),
+          Number(data.NATION.CENSUS[nationCensusId[i][j]].SCORE));
+        nationData.push(newNationData);
+      } catch (e) {
+        console.log(e);
+      }
     }
   }
 
-  console.log(DataCollected);
   console.log(`Stock Done!`);
 
-  //stockPrice.push(DataCollected);
-  //fs.writeFile('./src/const/stockprice.json', JSON.stringify(stockPrice), (err) => {
-    //if (err) throw err});
-  
-  BGData.push(DataCollected)
-
+  //push to StockMarketBackGroundData.json
+  BGData.push(nationData);
   fs.writeFile(`./const/StockMarketBackGroundData.json`, JSON.stringify(BGData), (err) => {
     // In case of a error throw err.
-    if (err) throw err});
-    calculation();
-}
+    if (err) throw err;});
+};
 
-const updatedStockFunc = async() => {
-  await stockmarketfunc();
-  console.log(`cringe`);
-}
-
-module.exports = { updatedStockFunc };
+module.exports = { generateBackgroundData };

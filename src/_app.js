@@ -1,8 +1,10 @@
 require('dotenv').config();
-//const { main } = require('./main');
-//const { stockmarketfunc } = require('./stockmarket');
+const { main } = require('./main');
+const { fetchBackgroundData } = require('./stockmarket');
+const { calculation } = require('./Comparer');
 const { pushDispatch } = require("./dispatch");
 
 (async () => {
-  await pushDispatch('This is being automated (again!)');
+  await fetchBackgroundData();
+  //await pushDispatch('It\'ll work this time I swear');
 })();
